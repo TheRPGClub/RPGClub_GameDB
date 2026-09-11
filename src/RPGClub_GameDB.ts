@@ -32,6 +32,11 @@ import { startUserEmojiService } from "./services/UserEmojiService.js";
 import { startPokopiaEmojiService } from "./services/PokopiaEmojiService.js";
 import { restoreJournalMessageContextsFromDb } from "./commands/now-playing/nowPlayingContexts.js";
 import { truncateWithEllipsis } from "./utilities/ValidationUtils.js";
+import {
+  assertTestGuildIdsComplete,
+  IS_TEST_MODE,
+  TEST_GUILD_ID,
+} from "./config/testMode.js";
 import { logError } from "./utilities/LogUtils.js";
 import { withRetry } from "./utilities/RetryUtils.js";
 import { isTransientApiError } from "./services/RpgClubApiClient.js";
@@ -81,8 +86,9 @@ function registerPresenceShutdownHooks(): void {
 }
 
 export const bot: Client = new Client({
-  // To use only guild command
-  // botGuilds: [(client) => client.guilds.cache.map((guild) => guild.id)],
+  // Test mode registers commands to the test guild so they appear immediately
+  // and cannot collide with the production command set. Production stays global.
+  ...(IS_TEST_MODE ? { botGuilds: [TEST_GUILD_ID] } : {}),
 
   // Discord intents
   intents: [
@@ -280,6 +286,8 @@ async function run(): Promise<void> {
   if (!process.env.BOT_TOKEN) {
     throw Error("Could not find BOT_TOKEN in your environment");
   }
+
+  assertTestGuildIdsComplete();
 
   // The API is the bot's only data source, and commands assume GOTM data is
   // loaded before login. If the API is down at boot (e.g. recovering from a

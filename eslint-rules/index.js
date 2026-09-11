@@ -281,6 +281,17 @@ function isAllowedIdConstantLocation(filename, suffix) {
   return false;
 }
 
+const SNOWFLAKE_PATTERN = /^\d{17,20}$/;
+
+/**
+ * src/config/ owns the real snowflakes and src/tests/ needs fake ones for
+ * fixtures, so neither is a place the override layer can erode.
+ */
+function isSnowflakeLiteralAllowedFile(filename) {
+  if (!filename) return false;
+  return filename.includes("/src/config/") || filename.includes("/src/tests/");
+}
+
 function isLiteralIdString(node) {
   return Boolean(node && node.type === "Literal" && typeof node.value === "string");
 }
@@ -1951,6 +1962,36 @@ export default {
             if (!isNumericIdString(node.init)) return;
             if (isAllowedIdConstantLocation(filename, MESSAGE_FLAG_ID_SUFFIX)) return;
             context.report({ node: node.id, messageId: "wrongFile" });
+          },
+        };
+      },
+    },
+    "no-raw-snowflake-literals": {
+      meta: {
+        type: "problem",
+        docs: {
+          description:
+            "Disallow raw Discord snowflake literals outside src/config/.",
+        },
+        schema: [],
+        messages: {
+          rawSnowflake:
+            "Raw snowflake \"{{value}}\" must live in src/config/ so the test guild " +
+            "override layer can substitute it.",
+        },
+      },
+      create(context) {
+        const filename = context.filename.replace(/\\/g, "/");
+        if (isSnowflakeLiteralAllowedFile(filename)) return {};
+        return {
+          Literal(node) {
+            if (typeof node.value !== "string") return;
+            if (!SNOWFLAKE_PATTERN.test(node.value)) return;
+            context.report({
+              node,
+              messageId: "rawSnowflake",
+              data: { value: node.value },
+            });
           },
         };
       },
