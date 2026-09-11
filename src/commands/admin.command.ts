@@ -4,6 +4,7 @@ import {
   StringSelectMenuInteraction,
   ModalSubmitInteraction,
   type ButtonInteraction,
+  type Channel,
   type CommandInteraction,
 } from "discord.js";
 import {
@@ -194,6 +195,20 @@ export class Admin {
       type: ApplicationCommandOptionType.Boolean,
     })
     postHere: boolean | undefined,
+    @SlashOption({
+      description: "Rehearse: post panels here only, write nothing, skip winner threads",
+      name: "testmode",
+      required: false,
+      type: ApplicationCommandOptionType.Boolean,
+    })
+    testMode: boolean | undefined,
+    @SlashOption({
+      description: "Round to rehearse (testmode only; defaults to the scheduled round)",
+      name: "round",
+      required: false,
+      type: ApplicationCommandOptionType.Integer,
+    })
+    round: number | undefined,
     interaction: CommandInteraction,
   ): Promise<void> {
     await safeDeferReply(interaction, { flags: MessageFlags.Ephemeral });
@@ -201,7 +216,7 @@ export class Admin {
     const okToUseCommand: boolean = await isAdmin(interaction);
     if (!okToUseCommand) return;
 
-    await handleVotingOpen(interaction, !!postHere);
+    await handleVotingOpen(interaction, !!postHere, !!testMode, round);
   }
 
   @Slash({
@@ -236,6 +251,13 @@ export class Admin {
       type: ApplicationCommandOptionType.Boolean,
     })
     publish: boolean | undefined,
+    @SlashOption({
+      description: "Rehearse the publish in this channel instead of announcements",
+      name: "channel",
+      required: false,
+      type: ApplicationCommandOptionType.Channel,
+    })
+    channel: Channel | undefined,
     interaction: CommandInteraction,
   ): Promise<void> {
     await safeDeferReply(interaction, { flags: MessageFlags.Ephemeral });
@@ -243,7 +265,7 @@ export class Admin {
     const okToUseCommand: boolean = await isAdmin(interaction);
     if (!okToUseCommand) return;
 
-    await handleVotingResults(interaction, round, !!publish);
+    await handleVotingResults(interaction, round, !!publish, channel?.id);
   }
 
   @Slash({

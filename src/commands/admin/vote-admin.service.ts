@@ -8,7 +8,7 @@ import {
   parseNominationKind,
 } from "../../classes/Nomination.js";
 import { deleteAllVotesForRound, getVoteTally } from "../../classes/Vote.js";
-import BotVotingInfo from "../../classes/BotVotingInfo.js";
+import BotVotingInfo, { type IBotVotingInfoEntry } from "../../classes/BotVotingInfo.js";
 import {
   extractErrorMessage,
   safeReply,
@@ -29,6 +29,7 @@ import {
 import {
   buildHiddenTallyText,
   buildTallyText,
+  buildTestPanelNoticeText,
   dedupeNominationsByGame,
   mergeTallyWithNominations,
   sumTallyVotes,
@@ -74,6 +75,186 @@ async function sendPanelToChannel(
   }
 }
 
+async function loadNominationsByKind(
+  roundNumber: number,
+): Promise<Map<NominationKind, INominationEntry[]>> {
+  const byKind = new Map<NominationKind, INominationEntry[]>();
+  for (const kind of NOMINATION_KINDS) {
+    byKind.set(kind, await listNominationsForRound(kind, roundNumber));
+  }
+  return byKind;
+}
+
+function hasVotableNominations(
+  nominationsByKind: Map<NominationKind, INominationEntry[]>,
+): boolean {
+  return [...nominationsByKind.values()].some(
+    (nominations) => dedupeNominationsByGame(nominations).length > 0,
+  );
+}
+
+interface IPostVotePanelsParams {
+  interaction: CommandInteraction;
+  channelId: string;
+  roundNumber: number;
+  voteDeadline: Date | null;
+  nominationsByKind: Map<NominationKind, INominationEntry[]>;
+  /** Adds the rehearsal banner; the controls themselves are unchanged. */
+  testMode?: boolean;
+  castsAccepted?: boolean;
+  castsRefusedReason?: string | null;
+}
+
+/** Posts one panel per category and reports what happened, line per category. */
+async function postVotePanels(params: IPostVotePanelsParams): Promise<string[]> {
+  const resultLines: string[] = [];
+  for (const kind of NOMINATION_KINDS) {
+    const kindLabel = nominationKindLabel(kind);
+    const nominations = params.nominationsByKind.get(kind) ?? [];
+    if (!dedupeNominationsByGame(nominations).length) {
+      resultLines.push(`${kindLabel}: no votable nominations; panel skipped.`);
+      continue;
+    }
+    const tally = await getVoteTally(kind, params.roundNumber);
+    const components = buildVotePanelComponents({
+      kind,
+      roundNumber: params.roundNumber,
+      voteDeadline: params.voteDeadline,
+      cap: tally.cap,
+      nominations,
+      testNotice: params.testMode
+        ? buildTestPanelNoticeText({
+            kindLabel,
+            roundNumber: params.roundNumber,
+            castsAccepted: Boolean(params.castsAccepted),
+            reason: params.castsRefusedReason ?? null,
+          })
+        : null,
+    });
+    const sent = await sendPanelToChannel(params.interaction, params.channelId, components);
+    resultLines.push(
+      sent
+        ? `${kindLabel}: voting panel posted in ${channelMention(params.channelId)}.`
+        : `${kindLabel}: failed to post the voting panel in ` +
+          `${channelMention(params.channelId)}.`,
+    );
+  }
+  return resultLines;
+}
+
+/** Why a test panel's casts would be refused, for the panel banner. */
+function buildCastsRefusedReason(
+  roundNumber: number,
+  info: IBotVotingInfoEntry | null,
+  decided: boolean,
+): string {
+  if (decided) {
+    return `Round ${roundNumber} already has recorded winners`;
+  }
+  if (!info) {
+    return `no voting_info row exists for Round ${roundNumber} yet`;
+  }
+  if (info.votingEnded) {
+    return `voting for Round ${roundNumber} has already ended`;
+  }
+  return `voting for Round ${roundNumber} has not opened yet`;
+}
+
+/**
+ * Rehearses a round's voting panels without writing anything. Panels go to the
+ * invoking channel and never to announcements, and no voting_info row is
+ * created or re-dated: creating one could make the scratch round the current
+ * round, so test mode reads the round's existing window instead of opening it.
+ * Casting from a test panel is still a real vote, which the banner says.
+ */
+async function handleVotingOpenTestMode(
+  interaction: CommandInteraction,
+  roundInput: number | undefined,
+): Promise<void> {
+  await withErrorReply(interaction, async () => {
+    const channelId = interaction.channelId;
+    if (!channelId) {
+      await safeReply(
+        interaction,
+        buildTextReply(
+          "Test mode posts the panels in the channel it was run from, " +
+            "so it cannot be used here.",
+          true,
+        ),
+      );
+      return;
+    }
+
+    let targetRound = roundInput;
+    if (targetRound == null) {
+      const current = await BotVotingInfo.getCurrentRound();
+      if (!current) {
+        await safeReply(
+          interaction,
+          buildTextReply(
+            "No voting round information is available. " +
+              "Pass round:<number> to choose what to rehearse.",
+            true,
+          ),
+        );
+        return;
+      }
+      targetRound = isRoundDecided(current.roundNumber)
+        ? current.roundNumber + 1
+        : current.roundNumber;
+    }
+    if (!isPositiveInt(targetRound)) {
+      await safeReply(interaction, buildTextReply("Invalid round number.", true));
+      return;
+    }
+
+    const nominationsByKind = await loadNominationsByKind(targetRound);
+    if (!hasVotableNominations(nominationsByKind)) {
+      await safeReply(
+        interaction,
+        buildTextReply(
+          `There are no votable nominations for Round ${targetRound}, ` +
+            "so there is nothing to rehearse.",
+          true,
+        ),
+      );
+      return;
+    }
+
+    const info = await BotVotingInfo.getByRound(targetRound);
+    const decided = isRoundDecided(targetRound);
+    const castsAccepted = Boolean(info?.votingOpen) && !decided;
+    const castsRefusedReason = castsAccepted
+      ? null
+      : buildCastsRefusedReason(targetRound, info, decided);
+
+    const resultLines = await postVotePanels({
+      interaction,
+      channelId,
+      roundNumber: targetRound,
+      voteDeadline: info?.voteDeadline ?? null,
+      nominationsByKind,
+      testMode: true,
+      castsAccepted,
+      castsRefusedReason,
+    });
+
+    const castNote = castsAccepted
+      ? `Casting is live: votes land on Round ${targetRound} for real. Clear them with ` +
+        `/admin votes-reset type:<category> round:${targetRound}.`
+      : `Casting is refused: ${castsRefusedReason}.`;
+    await safeReply(
+      interaction,
+      buildTextReply(
+        `🧪 Test mode: Round ${targetRound} panels posted in ${channelMention(channelId)}. ` +
+          "No voting_info row was created or changed.\n" +
+          `${castNote}\n${resultLines.join("\n")}`,
+        true,
+      ),
+    );
+  }, "Could not post the test voting panels");
+}
+
 /**
  * Opens first-party voting for the round after the current one and posts the
  * voting panels. Creating the target round's voting_info row (openVotingRound)
@@ -83,7 +264,24 @@ async function sendPanelToChannel(
 export async function handleVotingOpen(
   interaction: CommandInteraction,
   postHere: boolean,
+  testMode = false,
+  roundInput?: number,
 ): Promise<void> {
+  if (testMode) {
+    await handleVotingOpenTestMode(interaction, roundInput);
+    return;
+  }
+  if (roundInput != null) {
+    await safeReply(
+      interaction,
+      buildTextReply(
+        "round: only applies with testmode:true. Opening voting always targets the " +
+          "round the schedule is on, so the window cannot be opened for an arbitrary round.",
+        true,
+      ),
+    );
+    return;
+  }
   await withErrorReply(interaction, async () => {
     const current = await BotVotingInfo.getCurrentRound();
     if (!current) {
@@ -141,14 +339,8 @@ export async function handleVotingOpen(
       }
     }
 
-    const nominationsByKind = new Map<NominationKind, INominationEntry[]>();
-    for (const kind of NOMINATION_KINDS) {
-      nominationsByKind.set(kind, await listNominationsForRound(kind, targetRound));
-    }
-    const hasVotableNominations = [...nominationsByKind.values()].some(
-      (nominations) => dedupeNominationsByGame(nominations).length > 0,
-    );
-    if (!hasVotableNominations) {
+    const nominationsByKind = await loadNominationsByKind(targetRound);
+    if (!hasVotableNominations(nominationsByKind)) {
       await safeReply(
         interaction,
         buildTextReply(
@@ -185,29 +377,13 @@ export async function handleVotingOpen(
 
     const channelId =
       postHere && interaction.channelId ? interaction.channelId : ANNOUNCEMENT_CHANNEL_ID;
-    const resultLines: string[] = [];
-    for (const kind of NOMINATION_KINDS) {
-      const kindLabel = nominationKindLabel(kind);
-      const nominations = nominationsByKind.get(kind) ?? [];
-      if (!dedupeNominationsByGame(nominations).length) {
-        resultLines.push(`${kindLabel}: no votable nominations; panel skipped.`);
-        continue;
-      }
-      const tally = await getVoteTally(kind, targetRound);
-      const components = buildVotePanelComponents({
-        kind,
-        roundNumber: targetRound,
-        voteDeadline: info.voteDeadline,
-        cap: tally.cap,
-        nominations,
-      });
-      const sent = await sendPanelToChannel(interaction, channelId, components);
-      resultLines.push(
-        sent
-          ? `${kindLabel}: voting panel posted in ${channelMention(channelId)}.`
-          : `${kindLabel}: failed to post the voting panel in ${channelMention(channelId)}.`,
-      );
-    }
+    const resultLines = await postVotePanels({
+      interaction,
+      channelId,
+      roundNumber: targetRound,
+      voteDeadline: info.voteDeadline,
+      nominationsByKind,
+    });
 
     const deadlinePart = info.voteDeadline
       ? ` Voting closes <t:${toUnixTimestamp(info.voteDeadline)}:F>.`
@@ -349,7 +525,19 @@ export async function handleVotingResults(
   interaction: CommandInteraction,
   roundInput: number | undefined,
   publish: boolean,
+  channelOverrideId?: string,
 ): Promise<void> {
+  if (channelOverrideId && !publish) {
+    await safeReply(
+      interaction,
+      buildTextReply(
+        "channel: only applies with publish:true. Without it the results are returned " +
+          "to you here, not posted anywhere.",
+        true,
+      ),
+    );
+    return;
+  }
   await withErrorReply(interaction, async () => {
     let round = roundInput;
     if (round == null) {
@@ -385,11 +573,20 @@ export async function handleVotingResults(
         );
         return;
       }
-      await announceVotingResults(interaction.client, info);
+      // A channel override makes this a rehearsal: banner added, no winner thread.
+      const rehearsal = Boolean(channelOverrideId);
+      await announceVotingResults(interaction.client, info, {
+        channelIdOverride: channelOverrideId,
+        rehearsal,
+      });
+      const targetChannelId = channelOverrideId ?? ANNOUNCEMENT_CHANNEL_ID;
       await safeReply(
         interaction,
         buildTextReply(
-          `Round ${round} results were posted in ${channelMention(ANNOUNCEMENT_CHANNEL_ID)}.`,
+          rehearsal
+            ? `🧪 Test mode: Round ${round} results were posted in ` +
+              `${channelMention(targetChannelId)}. No winner thread was created or renamed.`
+            : `Round ${round} results were posted in ${channelMention(targetChannelId)}.`,
           true,
         ),
       );
