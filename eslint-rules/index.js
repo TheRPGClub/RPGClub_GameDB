@@ -1,4 +1,17 @@
 const DISCORD_JS_SOURCE = "discord.js";
+const CONTEXT_PARAMETER_NAME = "context";
+const REMOVED_CONTEXT_ACCESSORS = new Map([
+  ["getSourceCode", "sourceCode"],
+  ["getFilename", "filename"],
+  ["getPhysicalFilename", "physicalFilename"],
+  ["getCwd", "cwd"],
+]);
+const RELOCATED_CONTEXT_METHODS = new Set([
+  "getScope",
+  "getAncestors",
+  "getDeclaredVariables",
+  "markVariableAsUsed",
+]);
 const INTERACTION_RESPONSE_METHODS = new Set([
   "reply",
   "deferReply",
@@ -3340,6 +3353,51 @@ export default {
             const arg = node.value.arguments[0];
             if (readsDotId(arg)) {
               context.report({ node: node.value, messageId: "useEntryId" });
+            }
+          },
+        };
+      },
+    },
+    "no-deprecated-eslint-context-methods": {
+      meta: {
+        type: "problem",
+        docs: {
+          description:
+            "Ban ESLint rule-context accessors that were removed in ESLint 10.",
+        },
+        schema: [],
+        fixable: "code",
+        messages: {
+          useProperty:
+            "`context.{{method}}()` was removed in ESLint 10. Use `context.{{replacement}}` instead.",
+          useSourceCode:
+            "`context.{{method}}()` was removed in ESLint 10. Use `context.sourceCode.{{method}}(node)` instead.",
+        },
+      },
+      create(context) {
+        return {
+          CallExpression(node) {
+            const callee = node.callee;
+            if (callee.type !== "MemberExpression" || callee.computed) return;
+            if (callee.object.type !== "Identifier") return;
+            if (callee.object.name !== CONTEXT_PARAMETER_NAME) return;
+            if (callee.property.type !== "Identifier") return;
+
+            const method = callee.property.name;
+            const replacement = REMOVED_CONTEXT_ACCESSORS.get(method);
+            if (replacement) {
+              context.report({
+                node,
+                messageId: "useProperty",
+                data: { method, replacement },
+                fix: (fixer) =>
+                  fixer.replaceText(node, `${CONTEXT_PARAMETER_NAME}.${replacement}`),
+              });
+              return;
+            }
+
+            if (RELOCATED_CONTEXT_METHODS.has(method)) {
+              context.report({ node, messageId: "useSourceCode", data: { method } });
             }
           },
         };

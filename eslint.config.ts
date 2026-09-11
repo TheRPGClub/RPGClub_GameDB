@@ -125,6 +125,15 @@ export default [
     },
   },
   {
+    files: ["eslint-rules/**/*.js"],
+    plugins: {
+      local: localRules,
+    },
+    rules: {
+      "local/no-deprecated-eslint-context-methods": "error",
+    },
+  },
+  {
     files: ["**/*.ts"],
     rules: {
       "@typescript-eslint/no-explicit-any": "off",
