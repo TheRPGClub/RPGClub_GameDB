@@ -91,6 +91,21 @@ These are required or commonly used by the bot. Values depend on your deployment
 
 Discord channel IDs, user IDs, and tags are centralized in `src/config/`. Update those files to match your server.
 
+## Dependency Deprecation Warnings
+
+`npm ci` prints two deprecation warnings that cannot be fixed from this repo. Both come from
+transitive dependencies of actively maintained packages:
+
+- `whatwg-encoding@3.1.1` via `cheerio` -> `encoding-sniffer@0.2.1`. `encoding-sniffer@1.x` drops it
+  in favour of `@exodus/bytes`, but `cheerio@1.2.0` (latest) still pins `^0.2.1`. Forcing the major
+  bump through an override is not safe, so wait for upstream.
+- `node-domexception@1.0.0` via `googleapis` -> `gaxios` -> `node-fetch@3.3.2`. `gaxios@8.0.0` still
+  depends on `node-fetch`, so there is nothing to bump to yet.
+
+The rest are handled: `exceljs` was replaced by `write-excel-file`, and `package.json` `overrides`
+pin `@discordx/importer`'s `glob` and `gaxios`'s `rimraf` to current majors. Re-check both remaining
+warnings on the next dependency bump.
+
 ## Notes
 
 - The bot expects a prebuilt `build/` folder for production runs. Do not delete the `build/` directory.
