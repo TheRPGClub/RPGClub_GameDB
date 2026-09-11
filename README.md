@@ -86,6 +86,12 @@ The bot refuses to boot if any ID lacks a test guild override, naming the ones
 that are missing. Leaving `TEST_GUILD_ID` unset keeps production behavior
 unchanged.
 
+In test mode every ephemeral reply is also serialized and posted to
+`TEST_LOG_CHANNEL_ID`, so a second bot or a human reading scrollback can verify
+output that is otherwise visible only to the invoking user. The mirror is
+best-effort and never affects the real reply. Keep that channel restricted:
+mirrored payloads can contain data that was ephemeral for a reason.
+
 Test mode does not redirect external services. `RPGCLUB_API_BASE_URL`,
 Backblaze, and GitHub issues all use the same configuration they use in
 production, so point them at staging values yourself if you do not want a test

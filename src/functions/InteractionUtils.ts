@@ -15,6 +15,7 @@ import type {
   User,
 } from "discord.js";
 import { BOT_DEV_CHANNEL_ID } from "../config/channels.js";
+import { mirrorEphemeralReply, mirrorEphemeralUpdate } from "./EphemeralMirror.js";
 import { DEV_ROLE_ID } from "../config/roles.js";
 import {
   buildComponentsV2Flags,
@@ -391,7 +392,21 @@ const isAckError = (err: unknown): boolean => {
   return code === 40060 || code === 10062;
 };
 
+/**
+ * Mirrors the reply before returning, so the caller's payload is copied to the
+ * test-log channel in test mode. The mirror runs after the real send and never
+ * throws, so a mirror failure cannot reach the invoking user.
+ */
 export async function safeReply(interaction: AnyRepliable, options: any): Promise<any> {
+  const result = await sendSafeReply(interaction, options);
+  await mirrorEphemeralReply(
+    interaction,
+    applyDevChannelOverrides(interaction, normalizeOptions(options)),
+  );
+  return result;
+}
+
+async function sendSafeReply(interaction: AnyRepliable, options: any): Promise<any> {
   const aug = interaction as AugmentedInteraction;
   if (shouldBlockDevChannelInteraction(interaction)) {
     await sendDevChannelBlockResponse(interaction);
@@ -502,6 +517,8 @@ export async function safeUpdate(interaction: AnyRepliable, options: any): Promi
       await interaction.update(normalizedOptions);
       aug.__rpgAcked = true;
       aug.__rpgDeferred = true;
+      // Only on the success path: the fallback below mirrors through safeReply.
+      await mirrorEphemeralUpdate(interaction, normalizedOptions);
       return;
     } catch (err: unknown) {
       if (isAckError(err)) {
