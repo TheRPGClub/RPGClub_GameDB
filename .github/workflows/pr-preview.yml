@@ -1,0 +1,91 @@
+name: PR preview
+
+# Brings the PR's branch up as a bot in the test guild on the self-hosted
+# desktop runner, and tears it down when the PR closes. The GitHub-hosted
+# ci.yml jobs are untouched by this workflow.
+#
+# Runner setup and the runner-local env file: docs/pr-preview.md
+
+on:
+  pull_request:
+    types: [opened, reopened, synchronize, closed]
+
+# Two preview bots in one guild both answer the same command, so previews are
+# serialized globally rather than per PR, and the newest one wins.
+concurrency:
+  group: pr-preview
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  pull-requests: write
+
+env:
+  # Path on the runner host to the file holding the dev bot token and service
+  # config. Never checked in, never passed through GitHub secrets.
+  # Defaults to ~/.config/rpgclub-bot/preview.env when the variable is unset.
+  PREVIEW_ENV_FILE: ${{ vars.PREVIEW_ENV_FILE }}
+  TEST_GUILD_ID: ${{ vars.TEST_GUILD_ID }}
+
+jobs:
+  deploy:
+    name: Deploy preview
+    # A self-hosted runner must never execute workflow code from a fork, so
+    # forks are skipped outright instead of being gated on approval.
+    if: >-
+      github.event.action != 'closed' &&
+      github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: [self-hosted, linux, rpgclub-desktop]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Bring the preview up
+        env:
+          PREVIEW_PR_NUMBER: ${{ github.event.pull_request.number }}
+          PREVIEW_SHA: ${{ github.event.pull_request.head.sha }}
+        run: ./scripts/preview.sh up
+
+      - name: Report status on the PR
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          ./scripts/pr-preview-comment.sh "$PR_NUMBER" \
+            "Preview is **up** in the test guild (\`${TEST_GUILD_ID}\`) at \`${HEAD_SHA}\`." \
+            "Commands are registered guild-scoped, so they appear immediately." \
+            "Tear it down by hand with \`./scripts/preview.sh down\` on the runner host."
+
+      - name: Report failure on the PR
+        if: failure()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          RUN_URL: >-
+            ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          ./scripts/pr-preview-comment.sh "$PR_NUMBER" \
+            "Preview **failed to start**. See [the run](${RUN_URL})."
+
+  teardown:
+    name: Tear down preview
+    if: >-
+      github.event.action == 'closed' &&
+      github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: [self-hosted, linux, rpgclub-desktop]
+    steps:
+      - name: Checkout base branch
+        uses: actions/checkout@v5
+        with:
+          # The head ref can be gone by now, on a merge or a branch delete.
+          ref: ${{ github.event.pull_request.base.ref }}
+
+      - name: Tear the preview down
+        run: ./scripts/preview.sh down "${{ github.event.pull_request.number }}"
+
+      - name: Report status on the PR
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: ./scripts/pr-preview-comment.sh "$PR_NUMBER" "Preview is **down**."
