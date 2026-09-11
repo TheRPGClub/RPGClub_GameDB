@@ -191,3 +191,32 @@ export function buildCastResultText(params: {
   );
   return lines.join("\n");
 }
+
+/**
+ * Banner for a rehearsal announcement. Posted above the tallies so a test run
+ * in a staging channel can never be mistaken for the real winner post.
+ */
+export function buildRehearsalNoticeText(roundNumber: number): string {
+  return (
+    `## 🧪 TEST MODE\nRehearsal of the Round ${roundNumber} results announcement. ` +
+    "No winner thread was created or renamed, and nothing was posted to announcements."
+  );
+}
+
+/**
+ * Banner for a test-mode voting panel. Casts from a test panel are real votes
+ * on that round, so the notice names the cleanup command.
+ */
+export function buildTestPanelNoticeText(params: {
+  kindLabel: string;
+  roundNumber: number;
+  castsAccepted: boolean;
+  reason: string | null;
+}): string {
+  const status = params.castsAccepted
+    ? `Casting is live: votes land on Round ${params.roundNumber} for real. ` +
+      `Clear them with \`/admin votes-reset type:${params.kindLabel} ` +
+      `round:${params.roundNumber}\`.`
+    : `Casting is refused right now${params.reason ? `: ${params.reason}.` : "."}`;
+  return `## 🧪 TEST MODE\n${status}`;
+}

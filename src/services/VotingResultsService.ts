@@ -13,6 +13,7 @@ import {
 } from "../classes/Nomination.js";
 import { getVoteTally } from "../classes/Vote.js";
 import {
+  buildRehearsalNoticeText,
   buildTallyText,
   buildWinnerAnnouncementText,
   mergeTallyWithNominations,
@@ -105,6 +106,17 @@ function resolveRoundMonthLabel(nextVoteAt: Date): string {
     .toFormat("MMMM yyyy");
 }
 
+export interface IAnnounceResultsOptions {
+  /** Posts somewhere other than announcements, e.g. a rehearsal channel. */
+  channelIdOverride?: string;
+  /**
+   * Marks the run as a rehearsal: the announcement carries a test banner and
+   * no winner thread is created or renamed. Nothing else about the output
+   * changes, so the real copy is what gets reviewed.
+   */
+  rehearsal?: boolean;
+}
+
 /**
  * Posts the round's results to the announcements channel: one message with
  * the full tallies, then one winner announcement per category (with the
@@ -114,9 +126,10 @@ function resolveRoundMonthLabel(nextVoteAt: Date): string {
 export async function announceVotingResults(
   client: Client,
   round: IBotVotingInfoEntry,
-  channelIdOverride?: string,
+  options: IAnnounceResultsOptions = {},
 ): Promise<void> {
-  const channelId = channelIdOverride ?? ANNOUNCEMENT_CHANNEL_ID;
+  const channelId = options.channelIdOverride ?? ANNOUNCEMENT_CHANNEL_ID;
+  const rehearsal = Boolean(options.rehearsal);
   const channel = await client.channels.fetch(channelId);
   const sendable =
     channel?.isTextBased() && typeof (channel as any).send === "function"
@@ -176,7 +189,9 @@ export async function announceVotingResults(
   }
 
   await sendable.send({
-    components: tallyContainers,
+    components: rehearsal
+      ? [buildTextContainer(buildRehearsalNoticeText(round.roundNumber)), ...tallyContainers]
+      : tallyContainers,
     flags: buildComponentsV2Flags(false),
     allowedMentions: { parse: [] },
   });
@@ -185,7 +200,7 @@ export async function announceVotingResults(
     const files: AttachmentBuilder[] = [];
     let text = announcement.text;
     const winner = announcement.soleWinner;
-    if (winner) {
+    if (winner && !rehearsal) {
       // Winner threads are best-effort: a failure here must not block the
       // announcement itself. Ties are left for the wizard, once resolved.
       try {

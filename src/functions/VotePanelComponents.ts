@@ -34,6 +34,11 @@ export interface IVotePanelParams {
   nominations: INominationEntry[];
   /** When provided (the personal /vote panel), the header lists these votes. */
   myVotes?: IVoteEntry[] | null;
+  /**
+   * Marks the panel as a rehearsal posted by /admin voting-open testmode:true.
+   * The controls are identical, so any cast is a real vote; the banner says so.
+   */
+  testNotice?: string | null;
 }
 
 export function buildVotePanelComponents(params: IVotePanelParams): VotePanelComponent[] {
@@ -62,6 +67,9 @@ function buildPanelHeaderText(params: IVotePanelParams): string {
     `Vote for up to **${params.cap}** ${gamesNoun} using the menu below. ` +
       "Picking a game you already voted for takes that vote back.",
   ];
+  if (params.testNotice) {
+    lines.splice(1, 0, params.testNotice);
+  }
   if (params.voteDeadline) {
     const deadlineUnix = toUnixTimestamp(params.voteDeadline);
     lines.push(`Voting closes <t:${deadlineUnix}:F> (<t:${deadlineUnix}:R>).`);

@@ -7,6 +7,8 @@ import {
   buildCastResultText,
   buildHiddenTallyText,
   buildMyVotesText,
+  buildRehearsalNoticeText,
+  buildTestPanelNoticeText,
   buildWinnerAnnouncementText,
   dedupeNominationsByGame,
   mergeTallyWithNominations,
@@ -248,4 +250,45 @@ test("calculateVoteDeadlineEt ends on the first Sunday at/after the open", () =>
   // Monday rolls forward to the following Sunday.
   const fromMonday = calculateVoteDeadlineEt(new Date("2026-07-27T16:00:00.000Z"));
   assert.equal(fromMonday.toISOString(), "2026-08-03T03:59:59.999Z");
+});
+
+test("buildTestPanelNoticeText names the reset command when casting is live", () => {
+  const text = buildTestPanelNoticeText({
+    kindLabel: "GOTM",
+    roundNumber: 120,
+    castsAccepted: true,
+    reason: null,
+  });
+  assert.match(text, /TEST MODE/);
+  assert.match(text, /votes land on Round 120 for real/);
+  assert.match(text, /\/admin votes-reset type:GOTM round:120/);
+});
+
+test("buildTestPanelNoticeText explains why casting is refused", () => {
+  const text = buildTestPanelNoticeText({
+    kindLabel: "NR-GOTM",
+    roundNumber: 121,
+    castsAccepted: false,
+    reason: "voting for Round 121 has not opened yet",
+  });
+  assert.match(text, /Casting is refused right now: voting for Round 121 has not opened yet\./);
+  assert.doesNotMatch(text, /votes-reset/);
+});
+
+test("buildTestPanelNoticeText still reads as a sentence with no reason", () => {
+  const text = buildTestPanelNoticeText({
+    kindLabel: "GOTM",
+    roundNumber: 122,
+    castsAccepted: false,
+    reason: null,
+  });
+  assert.match(text, /Casting is refused right now\.$/);
+});
+
+test("buildRehearsalNoticeText says nothing reached announcements", () => {
+  const text = buildRehearsalNoticeText(123);
+  assert.match(text, /TEST MODE/);
+  assert.match(text, /Round 123 results announcement/);
+  assert.match(text, /No winner thread was created or renamed/);
+  assert.match(text, /nothing was posted to announcements/);
 });

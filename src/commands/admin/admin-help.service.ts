@@ -91,11 +91,14 @@ export const ADMIN_HELP_TOPICS: AdminHelpTopic[] = [
     id: "voting-open",
     label: "/admin voting-open",
     summary: "Open first-party voting for the upcoming round and post voting panels.",
-    syntax: "Syntax: /admin voting-open [post-here:<bool>]",
+    syntax:
+      "Syntax: /admin voting-open [post-here:<bool>] [testmode:<bool>] [round:<number>]",
     notes:
       "Run at/after the scheduled vote time. Opens the round's voting window and posts " +
       "voting panels to announcements (or the current channel with post-here). " +
-      "Re-running while voting is open reposts the panels.",
+      "Re-running while voting is open reposts the panels. testmode rehearses instead: " +
+      "panels are posted here only, nothing is written, and round picks which round to " +
+      "rehearse. Casting from a test panel is still a real vote.",
   },
   {
     id: "voting-close",
@@ -110,11 +113,13 @@ export const ADMIN_HELP_TOPICS: AdminHelpTopic[] = [
     id: "voting-results",
     label: "/admin voting-results",
     summary: "Show the GOTM and NR-GOTM vote tallies for a round.",
-    syntax: "Syntax: /admin voting-results [round:<number>] [publish:<bool>]",
+    syntax:
+      "Syntax: /admin voting-results [round:<number>] [publish:<bool>] [channel:<channel>]",
     notes:
       "Defaults to the current round. Tallies stay hidden (totals only) until voting " +
       "ends, admins included. publish re-posts the results and winner announcements " +
-      "to announcements after voting has ended.",
+      "to announcements after voting has ended. Adding channel rehearses that publish " +
+      "in the named channel instead, with no winner thread created or renamed.",
   },
   {
     id: "votes-reset",
