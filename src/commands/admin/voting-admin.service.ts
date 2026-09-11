@@ -10,7 +10,9 @@ import { formatMonthYear } from "../../functions/DateFormatUtils.js";
 import { promptUserForInput } from "./admin-prompt.utils.js";
 import { VOTING_TITLE_MAX_LEN } from "./admin.types.js";
 
-export async function handleVotingSetup(interaction: CommandInteraction): Promise<void> {
+export async function handleLegacyVotingSetup(
+  interaction: CommandInteraction,
+): Promise<void> {
   await withErrorReply(interaction, async () => {
     const window = await getUpcomingNominationWindow();
     const roundNumber = window.targetRound;

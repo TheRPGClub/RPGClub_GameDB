@@ -38,12 +38,12 @@ import { bot } from "../RPGClub_GameDB.js";
 import BotVotingInfo from "../classes/BotVotingInfo.js";
 import { isAdmin } from "./admin/admin-auth.utils.js";
 import {
-  ADMIN_HELP_TOPICS,
   buildAdminHelpButtons,
   buildAdminHelpEmbed,
   buildAdminHelpResponse,
+  resolveAdminHelpTopic,
 } from "./admin/admin-help.service.js";
-import { handleVotingSetup } from "./admin/voting-admin.service.js";
+import { handleLegacyVotingSetup } from "./admin/voting-admin.service.js";
 import {
   handleVoteCloseButton,
   handleVotesReset,
@@ -169,10 +169,10 @@ export class Admin {
   }
 
   @Slash({
-    description: "Generate Subo /poll commands for GOTM and NR-GOTM voting",
-    name: "voting-setup",
+    description: "Legacy fallback: generate Subo /poll commands for GOTM and NR-GOTM voting",
+    name: "legacy-voting-setup",
   })
-  async votingSetup(
+  async legacyVotingSetup(
     interaction: CommandInteraction,
   ): Promise<void> {
     await safeDeferReply(interaction, { flags: MessageFlags.Ephemeral });
@@ -180,7 +180,7 @@ export class Admin {
     const okToUseCommand: boolean = await isAdmin(interaction);
     if (!okToUseCommand) return;
 
-    await handleVotingSetup(interaction);
+    await handleLegacyVotingSetup(interaction);
   }
 
   @Slash({
@@ -475,7 +475,7 @@ export class Admin {
       return;
     }
 
-    const topic = ADMIN_HELP_TOPICS.find((entry) => entry.id === topicId);
+    const topic = resolveAdminHelpTopic(topicId);
 
     if (!topic) {
       const response = buildAdminHelpResponse();

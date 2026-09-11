@@ -81,11 +81,14 @@ export const ADMIN_HELP_TOPICS: AdminHelpTopic[] = [
     notes: "Votes are typically held the last Friday of the month. Date input is interpreted in America/New_York.",
   },
   {
-    id: "voting-setup",
-    label: "/admin voting-setup",
+    id: "legacy-voting-setup",
+    label: "/admin legacy-voting-setup",
     summary: "Build ready-to-paste Subo /poll commands from current nominations.",
-    syntax: "Syntax: /admin voting-setup",
-    notes: "Pulls current nominations for GOTM and NR-GOTM, sorts answers, and sets a sensible max_select.",
+    syntax: "Syntax: /admin legacy-voting-setup",
+    notes:
+      "Fallback for when first-party voting is unavailable. Pulls current nominations for " +
+      "GOTM and NR-GOTM, sorts answers, and sets a sensible max_select. " +
+      "Normal voting runs through /admin voting-open and /vote.",
   },
   {
     id: "voting-open",
@@ -129,6 +132,24 @@ export const ADMIN_HELP_TOPICS: AdminHelpTopic[] = [
     notes: "Asks for confirmation. This cannot be undone.",
   },
 ];
+
+/**
+ * Help topic ids renamed over time. A help menu posted before a rename still
+ * carries the old id as its select value, so resolving through this keeps those
+ * messages working instead of falling back to the error path.
+ */
+const ADMIN_HELP_TOPIC_ALIASES: Record<string, AdminHelpTopicId> = {
+  "voting-setup": "legacy-voting-setup",
+};
+
+/** Finds a help topic by id, accepting ids from before a rename. */
+export function resolveAdminHelpTopic(value: string | undefined): AdminHelpTopic | undefined {
+  if (!value) {
+    return undefined;
+  }
+  const id = ADMIN_HELP_TOPIC_ALIASES[value] ?? value;
+  return ADMIN_HELP_TOPICS.find((topic) => topic.id === id);
+}
 
 export function buildAdminHelpButtons(
   activeId?: AdminHelpTopicId,

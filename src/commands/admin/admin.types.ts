@@ -8,7 +8,7 @@ export type AdminHelpTopicId =
   | "delete-gotm-noms"
   | "delete-nr-gotm-noms"
   | "set-nextvote"
-  | "voting-setup"
+  | "legacy-voting-setup"
   | "voting-open"
   | "voting-close"
   | "voting-results"
