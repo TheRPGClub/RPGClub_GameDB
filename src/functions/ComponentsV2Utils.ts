@@ -96,15 +96,16 @@ export function buildContainerSend(
 /**
  * Link text is often user- or website-controlled, and a bare `]` there closes
  * the bracket early so the rest of the string can render a link whose visible
- * text and real target disagree. Escaping keeps the text inert; parentheses in
- * the URL are percent-encoded so they cannot terminate the target early.
+ * text and real target disagree. Escaping keeps the text inert. Parentheses are
+ * left alone because Discord renders `\(` literally in link text; parentheses in
+ * the URL are percent-encoded instead so they cannot terminate the target early.
  */
 export function escapeMaskedLinkText(text: string): string {
-  return text.replace(/([\\[\]()])/g, "\\$1");
+  return text.replace(/([\\[\]])/g, "\\$1");
 }
 
 export function unescapeMaskedLinkText(text: string): string {
-  return text.replace(/\\([\\[\]()])/g, "$1");
+  return text.replace(/\\([\\[\]])/g, "$1");
 }
 
 export function buildMaskedLink(text: string, url: string): string {
