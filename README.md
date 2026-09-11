@@ -92,6 +92,10 @@ output that is otherwise visible only to the invoking user. The mirror is
 best-effort and never affects the real reply. Keep that channel restricted:
 mirrored payloads can contain data that was ephemeral for a reason.
 
+Opening a pull request brings that branch up in the test guild automatically,
+and closing it tears the preview down. See `docs/pr-preview.md` for the
+self-hosted runner setup and for driving previews by hand.
+
 Test mode does not redirect external services. `RPGCLUB_API_BASE_URL`,
 Backblaze, and GitHub issues all use the same configuration they use in
 production, so point them at staging values yourself if you do not want a test
@@ -110,6 +114,7 @@ run touching them.
 - `npm run import:igdb-platforms` - Sync IGDB platforms into GameDB.
 - `npm run session:start` - Run session startup tasks.
 - `npm run backup:docker-volumes` - Backup docker volumes.
+- `./scripts/preview.sh` - Manage the per-PR preview bot on the runner host.
 
 ## Configuration
 

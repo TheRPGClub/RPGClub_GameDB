@@ -1,0 +1,38 @@
+# Per-PR preview of the bot, brought up in the test guild by
+# .github/workflows/pr-preview.yml on the self-hosted desktop runner.
+#
+# Kept in its own compose project so it can never restart, rebuild, or stop the
+# production `bot` service in docker-compose.yml.
+name: rpgclub-bot-preview
+
+services:
+  pr-preview:
+    container_name: rpgclub-bot-pr-preview
+    image: ${PREVIEW_IMAGE:?PREVIEW_IMAGE is required}
+    # Runner-local file holding the dev bot token and the non-secret service
+    # config. Never committed: see docs/pr-preview.md for its contents.
+    env_file: ${PREVIEW_ENV_FILE:?PREVIEW_ENV_FILE is required}
+    environment:
+      # Presence of TEST_GUILD_ID is the only test-mode flag, so a preview that
+      # somehow loses it refuses to boot rather than registering global commands.
+      TEST_GUILD_ID: ${TEST_GUILD_ID:?TEST_GUILD_ID is required}
+      DOCKER_BACKUP_ENABLED: "false"
+      IGDB_SCAN_ENABLED: "false"
+    labels:
+      # Watchtower polls :latest every 120 seconds and would stomp this
+      # container mid-test without the opt-out.
+      com.centurylinklabs.watchtower.enable: "false"
+      dev.therpgclub.preview: "true"
+      dev.therpgclub.preview.pr: "${PREVIEW_PR_NUMBER:?PREVIEW_PR_NUMBER is required}"
+      dev.therpgclub.preview.sha: "${PREVIEW_SHA:-unknown}"
+    restart: unless-stopped
+    init: true
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    network_mode: host
+    dns:
+      - 8.8.8.8
+      - 1.1.1.1
