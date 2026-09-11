@@ -15,7 +15,7 @@ import type {
   User,
 } from "discord.js";
 import { BOT_DEV_CHANNEL_ID } from "../config/channels.js";
-import { mirrorEphemeralReply } from "./EphemeralMirror.js";
+import { mirrorEphemeralReply, mirrorEphemeralUpdate } from "./EphemeralMirror.js";
 import { DEV_ROLE_ID } from "../config/roles.js";
 import {
   buildComponentsV2Flags,
@@ -517,6 +517,8 @@ export async function safeUpdate(interaction: AnyRepliable, options: any): Promi
       await interaction.update(normalizedOptions);
       aug.__rpgAcked = true;
       aug.__rpgDeferred = true;
+      // Only on the success path: the fallback below mirrors through safeReply.
+      await mirrorEphemeralUpdate(interaction, normalizedOptions);
       return;
     } catch (err: unknown) {
       if (isAckError(err)) {

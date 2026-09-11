@@ -17,7 +17,10 @@ type MirrorComponent = {
   components?: MirrorComponent[];
 };
 
+type MirrorKind = "reply" | "update";
+
 type MirrorPayload = {
+  kind: MirrorKind;
   source: string;
   user: string | null;
   channelId: string | null;
@@ -40,10 +43,7 @@ function toPlain(value: unknown): any {
   return value;
 }
 
-/** True when the payload's flags carry the ephemeral bit. */
-export function isEphemeralPayload(options: unknown): boolean {
-  if (!options || typeof options !== "object") return false;
-  const flags = (options as { flags?: unknown }).flags;
+function hasEphemeralFlag(flags: unknown): boolean {
   if (flags === undefined || flags === null) return false;
   try {
     return new MessageFlagsBitField(flags as never).has(MessageFlags.Ephemeral);
@@ -52,12 +52,33 @@ export function isEphemeralPayload(options: unknown): boolean {
   }
 }
 
+/** True when the payload's flags carry the ephemeral bit. */
+export function isEphemeralPayload(options: unknown): boolean {
+  if (!options || typeof options !== "object") return false;
+  return hasEphemeralFlag((options as { flags?: unknown }).flags);
+}
+
+/**
+ * True when the message the interaction acts on is itself ephemeral. Update
+ * payloads never carry the flag, so the source message is the only signal.
+ */
+export function isEphemeralInteractionMessage(interaction: AnyRepliable): boolean {
+  const message = (interaction as { message?: { flags?: unknown } }).message;
+  if (!message) return false;
+  return hasEphemeralFlag(message.flags);
+}
+
 /**
  * Pure gate, taking the mode explicitly so both branches can be exercised
  * without reloading the module graph.
  */
 export function shouldMirrorFor(testMode: boolean, options: unknown): boolean {
   return testMode && isEphemeralPayload(options);
+}
+
+/** Pure gate for the update path, where ephemerality comes from the message. */
+export function shouldMirrorUpdateFor(testMode: boolean, interaction: AnyRepliable): boolean {
+  return testMode && isEphemeralInteractionMessage(interaction);
 }
 
 function serializeComponent(raw: unknown): MirrorComponent {
@@ -98,8 +119,10 @@ export function describeInteraction(interaction: AnyRepliable): string {
 export function serializeMirrorPayload(
   interaction: AnyRepliable,
   options: unknown,
+  kind: MirrorKind = "reply",
 ): MirrorPayload {
   const payload: MirrorPayload = {
+    kind,
     source: describeInteraction(interaction),
     user: interaction.user?.id ?? null,
     channelId: interaction.channelId ?? null,
@@ -130,24 +153,50 @@ export function formatMirrorMessage(payload: MirrorPayload): string {
 }
 
 /**
+ * Posts one serialized payload to the test-log channel. Swallows its own
+ * failures so a mirror problem never affects the user's interaction.
+ */
+async function sendMirror(
+  interaction: AnyRepliable,
+  options: unknown,
+  kind: MirrorKind,
+): Promise<void> {
+  try {
+    const channel = await interaction.client.channels.fetch(TEST_LOG_CHANNEL_ID);
+    if (!channel || !channel.isTextBased()) return;
+    const sendable = channel as { send?: (content: string) => Promise<unknown> };
+    if (typeof sendable.send !== "function") return;
+    const payload = serializeMirrorPayload(interaction, options, kind);
+    await sendable.send(formatMirrorMessage(payload));
+  } catch (err: unknown) {
+    logError("EphemeralMirror.sendMirror", {
+      kind,
+      message: (err as { message?: string })?.message,
+    });
+  }
+}
+
+/**
  * Best-effort copy of an ephemeral reply to the test-log channel. Runs only in
- * test mode, and swallows its own failures so the real reply is never affected.
+ * test mode, gated on the outgoing payload's ephemeral flag.
  */
 export async function mirrorEphemeralReply(
   interaction: AnyRepliable,
   options: unknown,
 ): Promise<void> {
   if (!shouldMirrorFor(IS_TEST_MODE, options)) return;
+  await sendMirror(interaction, options, "reply");
+}
 
-  try {
-    const channel = await interaction.client.channels.fetch(TEST_LOG_CHANNEL_ID);
-    if (!channel || !channel.isTextBased()) return;
-    const sendable = channel as { send?: (content: string) => Promise<unknown> };
-    if (typeof sendable.send !== "function") return;
-    await sendable.send(formatMirrorMessage(serializeMirrorPayload(interaction, options)));
-  } catch (err: unknown) {
-    logError("EphemeralMirror.mirrorEphemeralReply", {
-      message: (err as { message?: string })?.message,
-    });
-  }
+/**
+ * Best-effort copy of a component update to the test-log channel. Update
+ * payloads inherit ephemerality from the message they edit, so the gate reads
+ * the source message rather than the payload flags.
+ */
+export async function mirrorEphemeralUpdate(
+  interaction: AnyRepliable,
+  options: unknown,
+): Promise<void> {
+  if (!shouldMirrorUpdateFor(IS_TEST_MODE, interaction)) return;
+  await sendMirror(interaction, options, "update");
 }

@@ -4,9 +4,11 @@ import { MessageFlags } from "discord.js";
 
 import {
   formatMirrorMessage,
+  isEphemeralInteractionMessage,
   isEphemeralPayload,
   serializeMirrorPayload,
   shouldMirrorFor,
+  shouldMirrorUpdateFor,
 } from "../functions/EphemeralMirror.js";
 import type { AnyRepliable } from "../functions/InteractionUtils.js";
 
@@ -105,5 +107,50 @@ test("mirrorEphemeralReply does not touch the client when test mode is off", asy
   } as unknown as AnyRepliable;
 
   await mirrorEphemeralReply(interaction, EPHEMERAL);
+  assert.equal(fetched, false);
+});
+
+test("isEphemeralInteractionMessage reads the source message flags", () => {
+  const withEphemeral = { message: { flags: MessageFlags.Ephemeral } } as unknown as AnyRepliable;
+  const withPublic = { message: { flags: 0 } } as unknown as AnyRepliable;
+  assert.equal(isEphemeralInteractionMessage(withEphemeral), true);
+  assert.equal(isEphemeralInteractionMessage(withPublic), false);
+  assert.equal(isEphemeralInteractionMessage({} as unknown as AnyRepliable), false);
+});
+
+test("shouldMirrorUpdateFor gates on test mode and the source message", () => {
+  const ephemeralSource = { message: { flags: MessageFlags.Ephemeral } } as unknown as AnyRepliable;
+  const publicSource = { message: { flags: 0 } } as unknown as AnyRepliable;
+  assert.equal(shouldMirrorUpdateFor(true, ephemeralSource), true);
+  assert.equal(shouldMirrorUpdateFor(false, ephemeralSource), false);
+  assert.equal(shouldMirrorUpdateFor(true, publicSource), false);
+});
+
+test("serializeMirrorPayload labels the kind of send", () => {
+  const reply = serializeMirrorPayload(fakeInteraction(), EPHEMERAL);
+  const update = serializeMirrorPayload(fakeInteraction(), EPHEMERAL, "update");
+  assert.equal(reply.kind, "reply");
+  assert.equal(update.kind, "update");
+});
+
+test("mirrorEphemeralUpdate does not touch the client when test mode is off", async () => {
+  const { mirrorEphemeralUpdate } = await import("../functions/EphemeralMirror.js");
+  let fetched = false;
+  const interaction = {
+    customId: "btn:1",
+    user: { id: "1" },
+    channelId: "2",
+    message: { flags: MessageFlags.Ephemeral },
+    client: {
+      channels: {
+        fetch: () => {
+          fetched = true;
+          return Promise.resolve(null);
+        },
+      },
+    },
+  } as unknown as AnyRepliable;
+
+  await mirrorEphemeralUpdate(interaction, { content: "updated" });
   assert.equal(fetched, false);
 });
