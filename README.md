@@ -72,6 +72,24 @@ These are required or commonly used by the bot. Values depend on your deployment
 - `BACKBLAZE_B2_APPLICATION_KEY`
 - `BACKBLAZE_B2_BUCKET_ID`
 - `BACKBLAZE_B2_BUCKET_NAME`
+- `TEST_GUILD_ID`
+
+### Test guild mode
+
+Setting `TEST_GUILD_ID` to a guild snowflake puts the bot in test mode. Its
+presence is the only flag: the ID constants in `src/config/channels.ts`,
+`roles.ts`, `users.ts`, and `tags.ts` resolve through `src/config/testMode.ts`
+and substitute the values in `src/config/testGuild.ts`, and slash commands
+register to that guild instead of globally so they appear immediately.
+
+The bot refuses to boot if any ID lacks a test guild override, naming the ones
+that are missing. Leaving `TEST_GUILD_ID` unset keeps production behavior
+unchanged.
+
+Test mode does not redirect external services. `RPGCLUB_API_BASE_URL`,
+Backblaze, and GitHub issues all use the same configuration they use in
+production, so point them at staging values yourself if you do not want a test
+run touching them.
 
 ## Useful Scripts
 
