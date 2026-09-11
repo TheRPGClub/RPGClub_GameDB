@@ -107,6 +107,7 @@ export default [
       "local/user-id-constants-in-users-config": "error",
       "local/tag-id-constants-in-tags-config": "error",
       "local/message-flag-id-constants-in-tags-config": "error",
+      "local/no-raw-snowflake-literals": "error",
       "local/stable-custom-id": "error",
       "local/no-duplicate-literal-custom-id-in-block": "error",
       "local/no-duplicate-computable-custom-id-in-row": "error",
