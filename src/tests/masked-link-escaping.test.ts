@@ -8,12 +8,19 @@ import {
 
 test("buildMaskedLink neutralizes a bracket breakout in the link text", () => {
   const link = buildMaskedLink("Anything](https://evil.example) ", "https://real.example");
-  assert.ok(
-    link.startsWith("[Anything\\]\\(https://evil.example\\)"),
-    "the injected bracket and parens are escaped",
+  assert.ok(link.startsWith("[Anything\\]"), "the injected bracket is escaped");
+  assert.equal(
+    link.match(/(?<!\\)\]\(/g)?.length,
+    1,
+    "only one unescaped link target remains",
   );
-  assert.equal(link.match(/\]\(/g)?.length, 1, "only one unescaped link target remains");
   assert.ok(link.endsWith("](https://real.example)"), "the real target is the link target");
+});
+
+test("buildMaskedLink leaves parentheses in the link text alone", () => {
+  const link = buildMaskedLink("Dragon Quest VII Reimagined (PS5)", "https://example.com/dq7");
+  assert.equal(link, "[Dragon Quest VII Reimagined (PS5)](https://example.com/dq7)");
+  assert.ok(!link.includes("\\"), "no backslash leaks into the rendered text");
 });
 
 test("buildMaskedLink percent-encodes parentheses in the url", () => {
