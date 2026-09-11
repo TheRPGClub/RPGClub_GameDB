@@ -56,3 +56,8 @@ export const NEW_GAME_ANNOUNCEMENT_CHANNEL_ID = resolveId(
   "NEW_GAME_ANNOUNCEMENT_CHANNEL_ID",
   "1469320594708369528",
 );
+/**
+ * Destination for mirrored ephemeral replies. Only read in test mode, so the
+ * production value is inert and simply points at the bot dev channel.
+ */
+export const TEST_LOG_CHANNEL_ID = resolveId("TEST_LOG_CHANNEL_ID", "1466475139402170450");
