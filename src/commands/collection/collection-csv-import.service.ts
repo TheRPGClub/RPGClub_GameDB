@@ -7,7 +7,7 @@ import {
   type Attachment,
 } from "discord.js";
 import { buildActionButton, buildButtonRow } from "../../functions/uiComponents.js";
-import ExcelJS from "exceljs";
+import writeXlsxFile, { type Row } from "write-excel-file/node";
 import {
   COLLECTION_OWNERSHIP_TYPES,
   type CollectionOwnershipType,
@@ -307,86 +307,81 @@ const HEADER_ALIASES: Record<string, string> = {
 
 const REQUIRED_HEADERS = ["title"];
 
-export async function buildCollectionCsvTemplateAttachment(): Promise<AttachmentBuilder> {
-  const workbook = new ExcelJS.Workbook();
-  workbook.creator = "RPGClubBotTs";
-  workbook.created = new Date();
+const TEMPLATE_COLUMN_HEADERS = [
+  "title",
+  "platform",
+  "ownership_type",
+  "note",
+  "gamedb_id",
+  "igdb_id",
+];
 
-  const templateSheet = workbook.addWorksheet("Template");
-  templateSheet.addRow([
-    "title",
-    "platform",
-    "ownership_type",
-    "note",
-    "gamedb_id",
-    "igdb_id",
-  ]);
-  templateSheet.addRow([
-    "The Legend of Zelda: Breath of the Wild",
-    "Switch",
-    "Physical",
-    COLLECTION_CSV_EXAMPLE_NOTE,
-    "",
-    "",
-  ]);
-  templateSheet.columns = [
-    { width: 38 },
-    { width: 18 },
-    { width: 18 },
-    { width: 40 },
-    { width: 12 },
-    { width: 12 },
-  ];
-  templateSheet.getRow(1).font = { bold: true };
+const GUIDE_COLUMN_HEADERS = ["Column", "Required", "Description", "Example"];
 
-  const guideSheet = workbook.addWorksheet("Guide");
-  guideSheet.addRow(["Column", "Required", "Description", "Example"]);
-  guideSheet.addRow([
-    "title",
-    "Yes",
-    "Game title used for matching in GameDB.",
-    "Chrono Trigger",
-  ]);
-  guideSheet.addRow([
-    "platform",
-    "No",
-    "Platform name or id. Leave blank if unknown.",
-    "Switch",
-  ]);
-  guideSheet.addRow([
+const GUIDE_ROWS = [
+  ["title", "Yes", "Game title used for matching in GameDB.", "Chrono Trigger"],
+  ["platform", "No", "Platform name or id. Leave blank if unknown.", "Switch"],
+  [
     "ownership_type",
     "No",
     "Digital, Physical, Subscription, or Other. Defaults to Digital.",
     "Digital",
-  ]);
-  guideSheet.addRow([
-    "note",
-    "No",
-    "Optional note, 500 characters max.",
-    "Gifted copy from a friend",
-  ]);
-  guideSheet.addRow([
+  ],
+  ["note", "No", "Optional note, 500 characters max.", "Gifted copy from a friend"],
+  [
     "gamedb_id",
     "No",
     "GameDB id to skip title matching. Only one of gamedb_id or igdb_id.",
     "12345",
-  ]);
-  guideSheet.addRow([
+  ],
+  [
     "igdb_id",
     "No",
     "IGDB numeric id to import new titles. Only one of gamedb_id or igdb_id.",
     "1020",
-  ]);
-  guideSheet.columns = [
-    { width: 18 },
-    { width: 10 },
-    { width: 60 },
-    { width: 24 },
-  ];
-  guideSheet.getRow(1).font = { bold: true };
+  ],
+];
 
-  const buffer = await workbook.xlsx.writeBuffer();
-  return new AttachmentBuilder(Buffer.from(buffer), {
+function buildHeaderRow(labels: string[]): Row {
+  return labels.map((value) => ({ value, type: String, fontWeight: "bold" }));
+}
+
+function buildTextRow(values: string[]): Row {
+  return values.map((value) => ({ value: value || undefined, type: String }));
+}
+
+export async function buildCollectionCsvTemplateAttachment(): Promise<AttachmentBuilder> {
+  const templateSheet = {
+    sheet: "Template",
+    data: [
+      buildHeaderRow(TEMPLATE_COLUMN_HEADERS),
+      buildTextRow([
+        "The Legend of Zelda: Breath of the Wild",
+        "Switch",
+        "Physical",
+        COLLECTION_CSV_EXAMPLE_NOTE,
+        "",
+        "",
+      ]),
+    ],
+    columns: [
+      { width: 38 },
+      { width: 18 },
+      { width: 18 },
+      { width: 40 },
+      { width: 12 },
+      { width: 12 },
+    ],
+  };
+
+  const guideSheet = {
+    sheet: "Guide",
+    data: [buildHeaderRow(GUIDE_COLUMN_HEADERS), ...GUIDE_ROWS.map(buildTextRow)],
+    columns: [{ width: 18 }, { width: 10 }, { width: 60 }, { width: 24 }],
+  };
+
+  const buffer = await writeXlsxFile([templateSheet, guideSheet]).toBuffer();
+  return new AttachmentBuilder(buffer, {
     name: COLLECTION_CSV_TEMPLATE_FILENAME,
   });
 }
