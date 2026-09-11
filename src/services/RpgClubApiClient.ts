@@ -16,7 +16,10 @@ import { withRetry } from "../utilities/RetryUtils.js";
 
 // Axios defaults to no timeout, so a wedged API (e.g. the 2026-07-22 Neon
 // outage) left every bot call hanging until the Fly proxy gave up (~37s).
-const REQUEST_TIMEOUT_MS = 10_000;
+// Must exceed the API's 15s Neon connect_timeout, otherwise the bot aborts a
+// cold-start request the API would have completed. Stays under the API's 30s
+// Rack::Timeout so a full server-side stall still surfaces as an error.
+const REQUEST_TIMEOUT_MS = 20_000;
 
 const GET_RETRY_ATTEMPTS = 3;
 const GET_RETRY_BASE_DELAY_MS = 1_000;
