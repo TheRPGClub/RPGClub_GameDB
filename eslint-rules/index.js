@@ -929,7 +929,7 @@ export default {
         },
       },
       create(context) {
-        const fileName = normalizePathText(context.getFilename?.() ?? "");
+        const fileName = normalizePathText(context.filename ?? "");
         if (fileName.endsWith("/src/functions/interactionutils.ts")) {
           return {};
         }
@@ -976,7 +976,7 @@ export default {
         },
       },
       create(context) {
-        const fileName = normalizePathText(context.getFilename?.() ?? "");
+        const fileName = normalizePathText(context.filename ?? "");
         if (fileName.endsWith("/src/functions/interactionutils.ts")) {
           return {};
         }
@@ -1723,7 +1723,7 @@ export default {
       create(context) {
         return {
           Program(node) {
-            const filename = context.getFilename();
+            const filename = context.filename;
             if (!filename || filename === "<input>") return;
             if (filename.includes("/build/") || filename.includes("\\\\build\\\\")) {
               context.report({ node, messageId: "buildFolder" });
@@ -1799,7 +1799,7 @@ export default {
         },
       },
       create(context) {
-        const sourceCode = context.getSourceCode();
+        const sourceCode = context.sourceCode;
         const reportIfEmdash = (node, text) => {
           if (typeof text !== "string") return;
           if (text.includes("—")) {
@@ -1853,7 +1853,7 @@ export default {
         },
       },
       create(context) {
-        const filename = context.getFilename().replace(/\\/g, "/");
+        const filename = context.filename.replace(/\\/g, "/");
         return {
           VariableDeclarator(node) {
             if (node.id.type !== "Identifier") return;
@@ -1878,7 +1878,7 @@ export default {
         },
       },
       create(context) {
-        const filename = context.getFilename().replace(/\\/g, "/");
+        const filename = context.filename.replace(/\\/g, "/");
         return {
           VariableDeclarator(node) {
             if (node.id.type !== "Identifier") return;
@@ -1903,7 +1903,7 @@ export default {
         },
       },
       create(context) {
-        const filename = context.getFilename().replace(/\\/g, "/");
+        const filename = context.filename.replace(/\\/g, "/");
         return {
           VariableDeclarator(node) {
             if (node.id.type !== "Identifier") return;
@@ -1929,7 +1929,7 @@ export default {
         },
       },
       create(context) {
-        const filename = context.getFilename().replace(/\\/g, "/");
+        const filename = context.filename.replace(/\\/g, "/");
         return {
           VariableDeclarator(node) {
             if (node.id.type !== "Identifier") return;
@@ -2925,7 +2925,7 @@ export default {
 
         return {
           ImportDeclaration(node) {
-            const sourceCode = context.getSourceCode();
+            const sourceCode = context.sourceCode;
             const nodeText = sourceCode.getText(node);
             if (nodeText.includes("\n")) return;
 
@@ -3150,7 +3150,7 @@ export default {
         },
       },
       create(context) {
-        const filename = context.getFilename().replace(/\\/g, "/");
+        const filename = context.filename.replace(/\\/g, "/");
         if (filename.endsWith("src/services/IGDB/IgdbSelectService.ts")) {
           return {};
         }
